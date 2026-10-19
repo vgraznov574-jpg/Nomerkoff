@@ -1,78 +1,109 @@
 <!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Номеркофф</title>
+<title>Автономера</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#17212b;--card:#222f3d;--tx:#fff;--sub:#8ba0b4;--ac:#2ea6ff}
 *{box-sizing:border-box}
-body{margin:0;padding:16px;background:var(--bg);color:var(--tx);font-family:-apple-system,system-ui,sans-serif}
-.top{display:flex;justify-content:space-between;font-size:18px;margin-bottom:12px}
-.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px}
-#num{font-size:72px;font-weight:700;text-align:center;letter-spacing:6px}
-#info{text-align:center;color:var(--sub);min-height:22px}
-button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:12px;font-size:17px;background:var(--ac);color:#fff}
-button.alt{background:#34495e}button.sell{background:#2ecc71}
-button:disabled{opacity:.4}
-.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2d3d4d}
-.row:last-child{border:0}.k{color:var(--sub);font-size:13px}
+body{margin:0;background:#0b0e17;color:#fff;font-family:-apple-system,system-ui,sans-serif;padding:12px 12px 80px}
+.top{display:flex;justify-content:space-between;align-items:flex-end}
+.bal{font-size:28px;font-weight:800}.lv{background:#1a2133;border-radius:20px;padding:6px 12px}
+.bar{height:5px;background:#1a2133;border-radius:3px;margin:8px 0 12px}.bar i{display:block;height:100%;background:#8b5cf6;border-radius:3px}
+.card{background:#141a2a;border-radius:16px;padding:14px;margin-bottom:10px}
+.plate{background:#fff;color:#000;border:3px solid #000;border-radius:10px;display:flex;font-weight:800;margin:6px auto;max-width:360px}
+.pn{flex:1;text-align:center;font-size:34px;padding:10px 4px;white-space:nowrap}
+.pr{border-left:3px solid #000;padding:4px 10px;text-align:center;font-size:26px;display:flex;flex-direction:column;justify-content:center}
+.pr small{font-size:11px}
+.sm .pn{font-size:20px;padding:6px}.sm .pr{font-size:15px;padding:2px 6px}.sm{margin:0;max-width:200px;border-width:2px}
+#rar{text-align:center;font-weight:700;min-height:24px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+button,select{font-size:16px;border:0;border-radius:12px;padding:13px;color:#fff;background:#2b6cf6;width:100%;margin-top:8px}
+button.g{background:#22a95a}button.d{background:#2a3350}button:disabled{opacity:.4}
+select{background:#1a2133}
+.st{background:#1a2133;padding:10px 4px;font-size:13px;text-align:center}.st.on{outline:2px solid #ffb020}
+.it{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #1f2740}
+.it button{width:auto;margin:0;padding:10px 12px;font-size:14px}.k{font-size:12px;color:#8a97b0}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:#10152300;gap:6px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#0b0e17}
+.tabs button{margin:0;padding:12px 0;background:#1a2133;font-size:14px}.tabs button.on{background:#2b6cf6}
+.v{display:none}.v.on{display:block}
 </style></head><body>
-<div class="top"><div>💰 <b id="coins">0</b></div><div>🎟 <b id="cnt">0</b></div></div>
-<div class="card">
-<div id="num">---</div><div id="info"></div>
-<button id="spin">Крутить (10 🪙)</button>
-<button id="free" class="alt">Бесплатный спин</button>
+<div class="top"><div><div class="k">Баланс</div><div class="bal" id="coins">0</div></div><div class="lv" id="lv">Ур. 1</div></div>
+<div class="bar"><i id="xp" style="width:0"></i></div>
+
+<div class="v on" id="v0">
+ <div class="card"><div class="plate" id="pl"><div class="pn">? ??? ??</div><div class="pr"><b>??</b><small>RUS</small></div></div>
+ <div id="rar"></div>
+ <div id="res" style="display:none"><div class="row"><button class="g" id="bs">Продать</button><button class="d" id="bk">В гараж</button></div></div></div>
+ <div class="card"><div class="row" id="stakes"></div>
+ <select id="reg"></select>
+ <label class="k" style="display:block;margin-top:8px"><input type="checkbox" id="fr" checked> Тратить бесплатные крутки (<span id="fc">0</span>), только обычная без региона</label>
+ <button id="spin">Крутить</button></div>
 </div>
-<div class="card"><b>Инвентарь</b><div id="inv"></div>
-<button id="sell" class="sell">Продать всё</button></div>
+
+<div class="v" id="v1"><div class="card">
+ <div>Номеров: <b id="gc">0</b> · оценка <b id="gw">0</b> ₽</div>
+ <button class="g" id="cheap">Продать все обычные и редкие</button></div>
+ <div class="card" id="gl"></div></div>
+
+<div class="v" id="v2"><div class="card"><b>🎁 Бонус дня</b><div class="k">+20 000 ₽ и 3 бесплатные крутки</div><button id="bd">Забрать</button></div>
+ <div class="card"><b>🎡 Рулетка</b><div class="k">раз в 3 часа</div><button id="bw">Крутить рулетку</button></div>
+ <div id="msg" style="text-align:center;color:#ffb020"></div></div>
+
+<div class="v" id="v3"><div class="card" id="tl"></div></div>
+
+<div class="tabs"><button class="on" data-t="0">🎰 Игра</button><button data-t="1">🚘 Гараж</button><button data-t="2">🎁 Бонусы</button><button data-t="3">🏆 Топ</button></div>
+
 <script>
-var tg=window.Telegram&&window.Telegram.WebApp;
-if(tg){tg.ready();tg.expand();}
+var tg=window.Telegram&&window.Telegram.WebApp;if(tg){tg.ready();tg.expand();}
 var $=function(i){return document.getElementById(i)};
-var freeIn=0,busy=false;
+var NM=['Обычный','Необычный','Редкий','Эпик','Легендарный','Мифик'];
+var COL=['#9aa7b4','#4cd964','#4aa8ff','#b45cff','#ffb020','#ff4d6d'];
+var LET='АВЕКМНОРСТУХ',S=null,busy=false,stake='n',cur=0,ti=0;
+function fm(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ')}
 function hap(t){try{tg.HapticFeedback.notificationOccurred(t)}catch(e){}}
-function call(a){
-  return fetch('/api/'+a,{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({initData:tg?tg.initData:''})})
-  .then(function(r){return r.text()})
-  .then(function(t){try{return JSON.parse(t)}catch(e){return{error:'Ошибка сервера'}}})
-  .catch(function(){return{error:'Нет связи с сервером'}});
-}
-function fmt(s){var m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x}
-function tick(){
-  var b=$('free');
-  if(freeIn>0){b.disabled=true;b.textContent='Бесплатный через '+fmt(freeIn)}
-  else{b.disabled=false;b.textContent='Бесплатный спин'}
-}
-function render(st){
-  $('coins').textContent=st.coins;
-  var n=0,h='';
-  st.inventory.forEach(function(i){n+=i.count;
-    h+='<div class="row"><div><b>'+i.num+'</b> ×'+i.count+'<div class="k">'+i.kind+'</div></div><div>'+i.value+' 🪙</div></div>'});
-  $('cnt').textContent=n;
-  $('inv').innerHTML=h||'<div class="k" style="padding:8px 0">Пусто</div>';
-  $('sell').textContent='Продать всё'+(st.total?' за '+st.total+' 🪙':'');
-  $('sell').disabled=!st.total;
-  freeIn=st.free_in;tick();
-}
-function act(a){
-  if(busy)return;busy=true;$('info').textContent='';
-  var t=setInterval(function(){$('num').textContent=('00'+Math.floor(Math.random()*1000)).slice(-3)},60);
-  Promise.all([call(a),new Promise(function(r){setTimeout(r,700)})]).then(function(x){
-    clearInterval(t);busy=false;var r=x[0];
-    if(r.error){$('num').textContent='---';$('info').textContent='⚠️ '+r.error;hap('error');load();return}
-    if(r.spin){$('num').textContent=r.spin.num;
-      $('info').textContent=r.spin.kind+' — '+r.spin.value+' 🪙';hap('success')}
-    if(r.sold){$('info').textContent='Продано на '+r.sold+' 🪙';hap('success')}
-    render(r);
-  });
-}
-function load(){call('state').then(function(r){
-  if(r.error){$('info').textContent='⚠️ '+r.error+'. Откройте игру через бота.';return}
-  render(r)})}
-$('spin').onclick=function(){act('spin')};
-$('free').onclick=function(){act('free')};
-$('sell').onclick=function(){act('sell')};
-setInterval(function(){if(freeIn>0){freeIn--;tick()}},1000);
-load();
+function fp(p){return p.charAt(0)+' '+p.slice(1,4)+' '+p.slice(4)}
+function plate(p,r,sm){return '<div class="plate'+(sm?' sm':'')+'"><div class="pn">'+fp(p)+'</div><div class="pr"><b>'+r+'</b><small>RUS</small></div></div>'}
+function call(a,p){return fetch('/api/'+a,{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify({initData:tg?tg.initData:'',p:p||{}})}).then(function(r){return r.text()})
+ .then(function(t){try{return JSON.parse(t)}catch(e){return{error:'Ошибка сервера'}}}).catch(function(){return{error:'Нет связи'}})}
+function tm(s){var h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h+' ч '+m+' мин'}
+function render(s){
+ S=s;$('coins').textContent=fm(s.coins)+' ₽';$('lv').textContent='Ур. '+s.level;
+ $('xp').style.width=Math.min(100,(s.xp-s.xp_lo)/(s.xp_hi-s.xp_lo)*100)+'%';
+ $('fc').textContent=s.free;$('gc').textContent=s.count;$('gw').textContent=fm(s.worth);
+ if(!$('reg').options.length){var o='<option value="">Любой регион</option>';
+  s.cfg.regions.forEach(function(r){o+='<option value="'+r+'">'+(s.cfg.beauty.indexOf(r)>=0?'⭐ ':'')+r+'</option>'});$('reg').innerHTML=o;
+  var h='';[['n','Обычная'],['p','Премиум'],['e','Элитная']].forEach(function(x){h+='<div class="st" data-s="'+x[0]+'">'+x[1]+'<br><b>'+fm(s.cfg.stakes[x[0]])+' ₽</b></div>'});
+  $('stakes').innerHTML=h;pick('n')}
+ var g='';s.plates.forEach(function(p){g+='<div class="it"><div>'+plate(p.plate,p.region,1)+'<div class="k" style="color:'+COL[p.rar]+'">'+NM[p.rar]+' · '+fm(p.value)+' ₽</div></div><button class="g" data-id="'+p.id+'">+'+fm(Math.floor(p.value*(1-s.fee)))+'</button></div>'});
+ $('gl').innerHTML=g||'<div class="k">Гараж пуст</div>';
+ $('bd').disabled=s.daily_in>0;$('bw').disabled=s.wheel_in>0;
+ $('bd').textContent=s.daily_in>0?'Через '+tm(s.daily_in):'Забрать';$('bw').textContent=s.wheel_in>0?'Через '+tm(s.wheel_in):'Крутить рулетку';
+ upd()}
+function pick(k){stake=k;[].forEach.call(document.querySelectorAll('.st'),function(e){e.className='st'+(e.dataset.s==k?' on':'')});upd()}
+function upd(){if(!S)return;var r=$('reg').value,c=S.cfg.stakes[stake];
+ if(r)c=Math.floor(c*(S.cfg.beauty.indexOf(r)>=0?1.4:1.2));
+ $('spin').textContent='Крутить · '+fm(c)+' ₽'}
+function rnd(){return LET[Math.floor(Math.random()*12)]+(100+Math.floor(Math.random()*900))+LET[Math.floor(Math.random()*12)]+LET[Math.floor(Math.random()*12)]}
+function show(p,r,rar){$('pl').outerHTML=plate(p,r).replace('class="plate"','class="plate" id="pl"');$('rar').innerHTML=rar>=0?'<span style="color:'+COL[rar]+'">'+NM[rar]+'</span>':''}
+function spin(){if(busy)return;busy=true;$('res').style.display='none';
+ var t=setInterval(function(){show(rnd(),'??',-1)},70);
+ Promise.all([call('spin',{stake:stake,region:$('reg').value,free:$('fr').checked}),new Promise(function(r){setTimeout(r,900)})]).then(function(x){
+  clearInterval(t);busy=false;var r=x[0];
+  if(r.error){hap('error');$('rar').textContent='⚠️ '+r.error;return}
+  var s=r.spin;cur=s.id;show(s.plate,s.region,s.rar);
+  $('rar').innerHTML+=' · '+fm(s.value)+' ₽';$('bs').textContent='Продать · '+fm(s.sell)+' ₽';
+  $('res').style.display='block';hap('success');render(r)})}
+function tab(n){[0,1,2,3].forEach(function(i){$('v'+i).className='v'+(i==n?' on':'')});
+ [].forEach.call(document.querySelectorAll('.tabs button'),function(b,i){b.className=i==n?'on':''});
+ if(n==3)call('top').then(function(r){var h='';(r.top||[]).forEach(function(u,i){h+='<div class="it"><div>'+(i+1)+'. '+u.name+(u.me?' (вы)':'')+'</div><b>'+fm(u.cap)+' ₽</b></div>'});$('tl').innerHTML=h})}
+function simple(a,p){call(a,p).then(function(r){if(r.error){$('msg').textContent='⚠️ '+r.error;hap('error');return}
+ if(r.sold)$('msg').textContent='Продано на '+fm(r.sold)+' ₽';else if(r.msg)$('msg').textContent=r.msg;hap('success');render(r);return r})}
+document.addEventListener('click',function(e){var t=e.target.closest('[data-t],[data-s],[data-id]');if(!t)return;
+ if(t.dataset.t!==undefined)tab(+t.dataset.t);else if(t.dataset.s)pick(t.dataset.s);else simple('sell',{id:t.dataset.id})});
+$('reg').onchange=upd;$('spin').onclick=spin;
+$('bs').onclick=function(){$('res').style.display='none';simple('sell',{id:cur})};
+$('bk').onclick=function(){$('res').style.display='none'};
+$('cheap').onclick=function(){simple('sell',{})};$('bd').onclick=function(){simple('daily')};$('bw').onclick=function(){simple('wheel')};
+call('state').then(function(r){if(r.error){$('rar').textContent='⚠️ '+r.error+'. Откройте игру через бота.';return}render(r)});
 </script></body></html>
