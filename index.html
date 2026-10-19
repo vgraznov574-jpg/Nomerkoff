@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Номеркофф</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#17212b;--card:#222f3d;--tx:#fff;--sub:#8ba0b4;--ac:#2ea6ff}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--tx);font-family:-apple-system,system-ui,sans-serif}
+.top{display:flex;justify-content:space-between;font-size:18px;margin-bottom:12px}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:12px}
+#num{font-size:72px;font-weight:700;text-align:center;letter-spacing:6px}
+#info{text-align:center;color:var(--sub);min-height:22px}
+button{width:100%;padding:14px;margin-top:10px;border:0;border-radius:12px;font-size:17px;background:var(--ac);color:#fff}
+button.alt{background:#34495e}button.sell{background:#2ecc71}
+button:disabled{opacity:.4}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2d3d4d}
+.row:last-child{border:0}.k{color:var(--sub);font-size:13px}
+</style></head><body>
+<div class="top"><div>💰 <b id="coins">0</b></div><div>🎟 <b id="cnt">0</b></div></div>
+<div class="card">
+<div id="num">---</div><div id="info"></div>
+<button id="spin">Крутить (10 🪙)</button>
+<button id="free" class="alt">Бесплатный спин</button>
+</div>
+<div class="card"><b>Инвентарь</b><div id="inv"></div>
+<button id="sell" class="sell">Продать всё</button></div>
+<script>
+var tg=window.Telegram&&window.Telegram.WebApp;
+if(tg){tg.ready();tg.expand();}
+var $=function(i){return document.getElementById(i)};
+var freeIn=0,busy=false;
+function hap(t){try{tg.HapticFeedback.notificationOccurred(t)}catch(e){}}
+function call(a){
+  return fetch('/api/'+a,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({initData:tg?tg.initData:''})})
+  .then(function(r){return r.text()})
+  .then(function(t){try{return JSON.parse(t)}catch(e){return{error:'Ошибка сервера'}}})
+  .catch(function(){return{error:'Нет связи с сервером'}});
+}
+function fmt(s){var m=Math.floor(s/60),x=s%60;return m+':'+(x<10?'0':'')+x}
+function tick(){
+  var b=$('free');
+  if(freeIn>0){b.disabled=true;b.textContent='Бесплатный через '+fmt(freeIn)}
+  else{b.disabled=false;b.textContent='Бесплатный спин'}
+}
+function render(st){
+  $('coins').textContent=st.coins;
+  var n=0,h='';
+  st.inventory.forEach(function(i){n+=i.count;
+    h+='<div class="row"><div><b>'+i.num+'</b> ×'+i.count+'<div class="k">'+i.kind+'</div></div><div>'+i.value+' 🪙</div></div>'});
+  $('cnt').textContent=n;
+  $('inv').innerHTML=h||'<div class="k" style="padding:8px 0">Пусто</div>';
+  $('sell').textContent='Продать всё'+(st.total?' за '+st.total+' 🪙':'');
+  $('sell').disabled=!st.total;
+  freeIn=st.free_in;tick();
+}
+function act(a){
+  if(busy)return;busy=true;$('info').textContent='';
+  var t=setInterval(function(){$('num').textContent=('00'+Math.floor(Math.random()*1000)).slice(-3)},60);
+  Promise.all([call(a),new Promise(function(r){setTimeout(r,700)})]).then(function(x){
+    clearInterval(t);busy=false;var r=x[0];
+    if(r.error){$('num').textContent='---';$('info').textContent='⚠️ '+r.error;hap('error');load();return}
+    if(r.spin){$('num').textContent=r.spin.num;
+      $('info').textContent=r.spin.kind+' — '+r.spin.value+' 🪙';hap('success')}
+    if(r.sold){$('info').textContent='Продано на '+r.sold+' 🪙';hap('success')}
+    render(r);
+  });
+}
+function load(){call('state').then(function(r){
+  if(r.error){$('info').textContent='⚠️ '+r.error+'. Откройте игру через бота.';return}
+  render(r)})}
+$('spin').onclick=function(){act('spin')};
+$('free').onclick=function(){act('free')};
+$('sell').onclick=function(){act('sell')};
+setInterval(function(){if(freeIn>0){freeIn--;tick()}},1000);
+load();
+</script></body></html>
