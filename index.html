@@ -33,7 +33,7 @@ select{background:#1a2133}
 <div class="v on" id="v0">
  <div class="card"><div class="plate" id="pl"><div class="pn">? ??? ??</div><div class="pr"><b>??</b><small>RUS</small></div></div>
  <div id="rar"></div>
- <div id="res" style="display:none"><div class="row"><button class="g" id="bs">Продать</button><button class="d" id="bk">В гараж</button></div></div></div>
+ <div id="res" style="display:none"><div class="row"><button class="g" id="bs">Продать</button><button class="d" id="bk">В инвентарь</button></div></div></div>
  <div class="card"><div class="row" id="stakes"></div>
  <select id="reg"></select>
  <label class="k" style="display:block;margin-top:8px"><input type="checkbox" id="fr" checked> Тратить бесплатные крутки (<span id="fc">0</span>), только обычная без региона</label>
@@ -51,7 +51,7 @@ select{background:#1a2133}
 
 <div class="v" id="v3"><div class="card" id="tl"></div></div>
 
-<div class="tabs"><button class="on" data-t="0">🎰 Игра</button><button data-t="1">🚘 Гараж</button><button data-t="2">🎁 Бонусы</button><button data-t="3">🏆 Топ</button></div>
+<div class="tabs"><button class="on" data-t="0">🎰 Игра</button><button data-t="1">🚘 Инвентарь</button><button data-t="2">🎁 Бонусы</button><button data-t="3">🏆 Топ</button></div>
 
 <script>
 var tg=window.Telegram&&window.Telegram.WebApp;if(tg){tg.ready();tg.expand();}
@@ -76,7 +76,7 @@ function render(s){
   var h='';[['n','Обычная'],['p','Премиум'],['e','Элитная']].forEach(function(x){h+='<div class="st" data-s="'+x[0]+'">'+x[1]+'<br><b>'+fm(s.cfg.stakes[x[0]])+' ₽</b></div>'});
   $('stakes').innerHTML=h;pick('n')}
  var g='';s.plates.forEach(function(p){g+='<div class="it"><div>'+plate(p.plate,p.region,1)+'<div class="k" style="color:'+COL[p.rar]+'">'+NM[p.rar]+' · '+fm(p.value)+' ₽</div></div><button class="g" data-id="'+p.id+'">+'+fm(Math.floor(p.value*(1-s.fee)))+'</button></div>'});
- $('gl').innerHTML=g||'<div class="k">Гараж пуст</div>';
+ $('gl').innerHTML=g||'<div class="k">Инвентарь пуст</div>';
  $('bd').disabled=s.daily_in>0;$('bw').disabled=s.wheel_in>0;
  $('bd').textContent=s.daily_in>0?'Через '+tm(s.daily_in):'Забрать';$('bw').textContent=s.wheel_in>0?'Через '+tm(s.wheel_in):'Крутить рулетку';
  upd()}
