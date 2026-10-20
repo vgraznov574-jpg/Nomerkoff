@@ -28,6 +28,10 @@ REGIONS = BEAUTY + ["01", "02", "03", "05", "10", "12", "13", "16", "21", "23", 
           "76", "86", "93", "102", "116", "123", "124", "134", "152", "154", "161", "163", "174",
           "190", "196", "716", "750", "763"]
 LET = "АВЕКМНОРСТУХ"
+UP_CHANCE, UP_COST = [0.30, 0.22, 0.10, 0.05, 0.02], 0.25   # шанс апгрейда по редкости, цена = 25% стоимости
+TASKS = [("Сделать 10 круток", "spins", 10, {"free": 2}),
+         ("Продать 5 номеров", "sells", 5, {"coins": 10000}),
+         ("Выбить синий номер или лучше", "rares", 1, {"coins": 5000, "free": 1})]
 LOCK = asyncio.Lock()
 router = Router()
 
@@ -71,23 +75,50 @@ async def init_db():
     async with aiosqlite.connect(DB) as db:
         await db.execute("CREATE TABLE IF NOT EXISTS p_users(id INTEGER PRIMARY KEY, name TEXT DEFAULT '', coins INTEGER, free INTEGER, xp INTEGER DEFAULT 0, last_daily INTEGER DEFAULT 0, last_wheel INTEGER DEFAULT 0)")
         await db.execute("CREATE TABLE IF NOT EXISTS p_plates(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, plate TEXT, region TEXT, rar INTEGER, value INTEGER)")
+        for col in ["streak INTEGER DEFAULT 0", "tday INTEGER DEFAULT 0", "tspins INTEGER DEFAULT 0",
+                    "tsells INTEGER DEFAULT 0", "trares INTEGER DEFAULT 0", "tclaim INTEGER DEFAULT 0",
+                    "lvl_paid INTEGER DEFAULT 1"]:
+            try: await db.execute("ALTER TABLE p_users ADD COLUMN " + col)
+            except Exception: pass
         await db.commit()
+
+
+async def lvl_check(db, uid):
+    xp, paid = await one(db, "SELECT xp,lvl_paid FROM p_users WHERE id=?", (uid,))
+    lv = 1 + int((xp / 10) ** 0.5)
+    if lv <= paid: return None
+    rw = sum(l * 5000 for l in range(paid + 1, lv + 1))
+    await db.execute("UPDATE p_users SET coins=coins+?,lvl_paid=? WHERE id=?", (rw, lv, uid))
+    return {"level": lv, "reward": rw}
+
+
+def calc_value(rar, vm, reg):
+    return int(BASE[rar] * vm * random.uniform(0.85, 1.15) * (1.6 if reg in BEAUTY else 1))
 
 
 async def get_state(db, uid, name=""):
     await db.execute("INSERT OR IGNORE INTO p_users(id,name,coins,free) VALUES(?,?,?,?)", (uid, name, START_COINS, START_FREE))
     if name: await db.execute("UPDATE p_users SET name=? WHERE id=?", (name, uid))
     await db.commit()
-    coins, free, xp, ld, lw = await one(db, "SELECT coins,free,xp,last_daily,last_wheel FROM p_users WHERE id=?", (uid,))
+    coins, free, xp, ld, lw, streak, tday, ts, tl, tr, tc = await one(
+        db, "SELECT coins,free,xp,last_daily,last_wheel,streak,tday,tspins,tsells,trares,tclaim FROM p_users WHERE id=?", (uid,))
     now = int(time.time())
+    if tday != now // 86400:
+        await db.execute("UPDATE p_users SET tday=?,tspins=0,tsells=0,trares=0,tclaim=0 WHERE id=?", (now // 86400, uid))
+        await db.commit(); ts = tl = tr = tc = 0
+    nxt = streak + 1 if ld and now - ld <= 2 * DAILY_CD else 1
+    have = {"spins": ts, "sells": tl, "rares": tr}
+    tasks = [{"id": i, "name": n, "have": min(have[k], need), "need": need, "rw": rw, "claimed": bool(tc >> i & 1)}
+             for i, (n, k, need, rw) in enumerate(TASKS)]
     pl = await rows(db, "SELECT id,plate,region,rar,value FROM p_plates WHERE user_id=? ORDER BY value DESC LIMIT 200", (uid,))
     cnt, tot = await one(db, "SELECT COUNT(*),COALESCE(SUM(value),0) FROM p_plates WHERE user_id=?", (uid,))
     lvl = 1 + int((xp / 10) ** 0.5)
     return {"coins": coins, "free": free, "level": lvl, "xp": xp, "xp_lo": 10 * (lvl - 1) ** 2, "xp_hi": 10 * lvl ** 2,
             "daily_in": max(0, ld + DAILY_CD - now), "wheel_in": max(0, lw + WHEEL_CD - now),
             "plates": [{"id": i, "plate": p, "region": r, "rar": q, "value": v} for i, p, r, q, v in pl],
-            "count": cnt, "worth": tot, "fee": FEE,
-            "cfg": {"stakes": {k: v[0] for k, v in STAKES.items()}, "regions": REGIONS, "beauty": BEAUTY}}
+            "count": cnt, "worth": tot, "fee": FEE, "tasks": tasks,
+            "daily_streak": nxt, "daily_reward": DAILY_COINS + 5000 * (min(nxt, 7) - 1),
+            "cfg": {"stakes": {k: v[0] for k, v in STAKES.items()}, "regions": REGIONS, "beauty": BEAUTY, "up": UP_CHANCE, "up_cost": UP_COST}}
 
 
 async def act(uid, name, action, p):
@@ -108,11 +139,14 @@ async def act(uid, name, action, p):
                 await db.execute("UPDATE p_users SET coins=coins-? WHERE id=?", (price, uid))
             rar = roll(boost)
             plate, reg = make_plate(rar, reg or random.choice(REGIONS))
-            val = int(BASE[rar] * vm * random.uniform(0.85, 1.15) * (1.6 if reg in BEAUTY else 1))
+            val = calc_value(rar, vm, reg)
             cur = await db.execute("INSERT INTO p_plates(user_id,plate,region,rar,value) VALUES(?,?,?,?,?)", (uid, plate, reg, rar, val))
-            await db.execute("UPDATE p_users SET xp=xp+? WHERE id=?", (1 + rar * 3, uid))
+            await db.execute("UPDATE p_users SET xp=xp+?,tspins=tspins+1,trares=trares+? WHERE id=?",
+                             (1 + rar * 3, 1 if rar >= 2 else 0, uid))
+            lu = await lvl_check(db, uid)
             await db.commit()
             s = await get_state(db, uid, name)
+            if lu: s["levelup"] = lu
             s["spin"] = {"id": cur.lastrowid, "plate": plate, "region": reg, "rar": rar, "value": val, "sell": int(val * (1 - FEE))}
             return s
         if action == "sell":
@@ -123,15 +157,17 @@ async def act(uid, name, action, p):
             if not rs: return {"error": "Нечего продавать"}
             total = int(sum(v for _, v in rs) * (1 - FEE))
             await db.executemany("DELETE FROM p_plates WHERE id=?", [(i,) for i, _ in rs])
-            await db.execute("UPDATE p_users SET coins=coins+? WHERE id=?", (total, uid))
+            await db.execute("UPDATE p_users SET coins=coins+?,tsells=tsells+? WHERE id=?", (total, len(rs), uid))
             await db.commit()
             s = await get_state(db, uid, name); s["sold"] = total
             return s
         if action == "daily":
             if s["daily_in"] > 0: return {"error": "Бонус дня ещё не готов"}
-            await db.execute("UPDATE p_users SET coins=coins+?,free=free+?,last_daily=? WHERE id=?", (DAILY_COINS, DAILY_FREE, now, uid))
+            rw, day = s["daily_reward"], s["daily_streak"]
+            await db.execute("UPDATE p_users SET coins=coins+?,free=free+?,last_daily=?,streak=? WHERE id=?",
+                             (rw, DAILY_FREE, now, s["daily_streak"], uid))
             await db.commit()
-            s = await get_state(db, uid, name); s["msg"] = f"+{DAILY_COINS} ₽ и +{DAILY_FREE} бесплатных круток"
+            s = await get_state(db, uid, name); s["msg"] = f"День {day}: +{rw} ₽ и +{DAILY_FREE} беспл. крутки"
             return s
         if action == "wheel":
             if s["wheel_in"] > 0: return {"error": "Рулетка ещё не готова"}
@@ -144,6 +180,38 @@ async def act(uid, name, action, p):
             await db.commit()
             s = await get_state(db, uid, name)
             s["msg"] = f"Выигрыш: {c} ₽" if c else f"Выигрыш: {f} беспл. крутки"
+            return s
+        if action == "upgrade":
+            r = await one(db, "SELECT id,plate,region,rar,value FROM p_plates WHERE id=? AND user_id=?", (int(p.get("id") or 0), uid))
+            if not r or r[3] >= 5: return {"error": "Этот номер нельзя улучшить"}
+            pid, plate, reg, rar, val = r
+            cost = int(val * UP_COST)
+            if s["coins"] < cost: return {"error": "Не хватает монет"}
+            await db.execute("UPDATE p_users SET coins=coins-? WHERE id=?", (cost, uid))
+            await db.execute("DELETE FROM p_plates WHERE id=?", (pid,))
+            up = {"ok": False, "cost": cost, "old": plate}
+            if random.random() < UP_CHANCE[rar]:
+                nr = rar + 1
+                np_, nreg = make_plate(nr, reg)
+                nv = int(val * BASE[nr] / BASE[rar] * random.uniform(0.85, 1.15))
+                cur = await db.execute("INSERT INTO p_plates(user_id,plate,region,rar,value) VALUES(?,?,?,?,?)", (uid, np_, nreg, nr, nv))
+                await db.execute("UPDATE p_users SET xp=xp+? WHERE id=?", (2 + nr * 2, uid))
+                up = {"ok": True, "cost": cost, "plate": np_, "region": nreg, "rar": nr, "value": nv}
+            lu = await lvl_check(db, uid)
+            await db.commit()
+            s = await get_state(db, uid, name); s["up"] = up
+            if lu: s["levelup"] = lu
+            return s
+        if action == "task":
+            i = int(p.get("id", -1))
+            if not 0 <= i < len(TASKS): return {"error": "Нет такого задания"}
+            t = s["tasks"][i]
+            if t["claimed"] or t["have"] < t["need"]: return {"error": "Задание не выполнено"}
+            rw = t["rw"]
+            await db.execute("UPDATE p_users SET coins=coins+?,free=free+?,tclaim=tclaim|? WHERE id=?",
+                             (rw.get("coins", 0), rw.get("free", 0), 1 << i, uid))
+            await db.commit()
+            s = await get_state(db, uid, name); s["msg"] = "Награда получена"
             return s
         if action == "top":
             rs = await rows(db, "SELECT u.id,u.name,u.coins+COALESCE((SELECT SUM(value) FROM p_plates WHERE user_id=u.id),0) c FROM p_users u ORDER BY c DESC LIMIT 10")
